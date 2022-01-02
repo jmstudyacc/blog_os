@@ -1,0 +1,19 @@
+# target for these builds:
+# rustup component add rust-src --toolchain nightly-aarch64-apple-darwin
+# cargo build --target x86_64-blog_os.json
+
+[package]
+name = "blog-os"
+version = "0.1.0"
+edition = "2021"
+
+# Disabling unwinding in Dev and Release
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+# to include the llvm-tools-preview component: rustup component add llvm-tools-preview
+bootloader = "0.9.8"

@@ -1,0 +1,15 @@
+# in .cargo/config.toml
+# custom target is defined, precompiled libraries are not included by default
+
+[build]
+target = "x86_64-blog_os.json"
+
+[target.'cfg(target_os = "none")']
+runner = "bootimage runner"
+
+[unstable]
+# "core" is needed for the precompiled libraries & dependency for compilter_builtins
+# compiler_builtins provides a number of built-in functions available for all systems
+# a number of default memory functions are not included by default: memset,memcpy,memcmp
+build-std-features = ["compiler-builtins-mem"]  # this provides those memory features
+build-std = ["core", "compiler_builtins"]
