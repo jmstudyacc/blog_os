@@ -3,7 +3,7 @@
 use volatile::Volatile;
 // supports Rust formatting macros to easily print different types
 use core::fmt;
-use core::fmt::Arguments;
+use lazy_static::lazy_static;
 
 #[allow(dead_code)] // disables the compiler reporting unused enum variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq)] // enables Copy semantics, printability and comparability
@@ -53,12 +53,26 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
+/*
 // construct required to track writing to the screen
 pub struct Writer {
     // will always write to the last line & shift lines up when a line is full or \n
     column_position: usize,      // tracks the current position in the last row
     color_code: ColorCode,       // current fg & bg colors
     buffer: &'static mut Buffer, //reference to the VGA buffer is stored in Buffer (reference is valid for the entire runtime)
+}
+*/
+
+// as ColorCode::new causes the compiler to error, the const evaluator cannot convert raw pointers to references at compile time
+// the lazy_static! crate & macro is used - the static lazily initializes itself when it is accessed for the first time
+lazy_static! {
+    // this WRITER is useless as it is immutable, 1 possible solution is use a mutable static (THIS IS HIGHLY DISCOURAGED)
+    // an alternative to this is to use Spinlocks (spin@0.5.2)
+    pub static ref WRITER: Writer = Writer {
+        column_position: 0,
+        color_code: ColorCode::new(Color::Green, Color::Black),
+        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+    };
 }
 
 impl Writer {
