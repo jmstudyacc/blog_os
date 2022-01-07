@@ -1,6 +1,9 @@
 // use this crate to prevent the compiler from erroneously optimising
 // the compiler does not know that that the VGA buffer memory is being accessed
 use volatile::Volatile;
+// supports Rust formatting macros to easily print different types
+use core::fmt;
+use core::fmt::Arguments;
 
 #[allow(dead_code)] // disables the compiler reporting unused enum variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq)] // enables Copy semantics, printability and comparability
@@ -75,12 +78,13 @@ impl Writer {
 
                 let color_code = self.color_code;
                 // the value in the buffer of [row][col] becomes a ScreenChar
-                self.buffer.chars[row][col] = ScreenChar {
+                // use of the .write() method from Volatile ensure the compiler does not optimise this away
+                self.buffer.chars[row][col].write(ScreenChar {
                     // the character written is found in the byte
                     ascii_character: byte,
                     // the color is found in the ColorCode field
                     color_code,
-                };
+                });
                 self.column_position += 1;
             }
         }
@@ -98,8 +102,36 @@ impl Writer {
         }
     }
 
+    // this function will move all the characters one line up & the top line is deleted
+    // starting point, again, is the beginning of the last line
     fn new_line(&mut self) {
-        todo!()
+        for row in 1..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                let character = self.buffer.chars[row][col].read();
+                self.buffer.chars[row - 1][col].write(character);
+            }
+        }
+        self.clear_row(BUFFER_HEIGHT - 1);
+        self.column_position = 0;
+    }
+
+    // Method clears a row by overwriting all of its characters with a space character
+    fn clear_row(&mut self, row: usize) {
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: self.color_code,
+        };
+        for col in 0..BUFFER_WIDTH {
+            self.buffer[row][col].write(blank);
+        }
+    }
+}
+
+// to enable the Rust formatting macros we need to impl the trait on Writer
+impl fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
     }
 }
 
@@ -116,4 +148,7 @@ pub fn print_test() {
     writer.write_byte(b'H');
     writer.write_string("ello ");
     writer.write_string("Wørld!");
+    // call to unwrap() is needed as write! returns a Result
+    // it would panic on any errors, but in this case, writes to VGA buffer never fail
+    write!(writer, "The number are {} and {}", 42, 1.0 / 3.0).unwrap();
 }
