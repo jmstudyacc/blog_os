@@ -4,6 +4,8 @@ use volatile::Volatile;
 // supports Rust formatting macros to easily print different types
 use core::fmt;
 use lazy_static::lazy_static;
+// a simple mutex - the threads simply try to lock the mutex again & again in a tight loop
+use spin::Mutex;
 
 #[allow(dead_code)] // disables the compiler reporting unused enum variants
 #[derive(Debug, Clone, Copy, PartialEq, Eq)] // enables Copy semantics, printability and comparability
@@ -53,7 +55,6 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
-/*
 // construct required to track writing to the screen
 pub struct Writer {
     // will always write to the last line & shift lines up when a line is full or \n
@@ -61,18 +62,17 @@ pub struct Writer {
     color_code: ColorCode,       // current fg & bg colors
     buffer: &'static mut Buffer, //reference to the VGA buffer is stored in Buffer (reference is valid for the entire runtime)
 }
-*/
 
 // as ColorCode::new causes the compiler to error, the const evaluator cannot convert raw pointers to references at compile time
 // the lazy_static! crate & macro is used - the static lazily initializes itself when it is accessed for the first time
 lazy_static! {
     // this WRITER is useless as it is immutable, 1 possible solution is use a mutable static (THIS IS HIGHLY DISCOURAGED)
-    // an alternative to this is to use Spinlocks (spin@0.5.2)
-    pub static ref WRITER: Writer = Writer {
+    // an alternative to this is to use a Spinlock (spin@0.5.2)
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
         column_position: 0,
         color_code: ColorCode::new(Color::Green, Color::Black),
         buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    };
+    });
 }
 
 impl Writer {
@@ -136,7 +136,7 @@ impl Writer {
             color_code: self.color_code,
         };
         for col in 0..BUFFER_WIDTH {
-            self.buffer[row][col].write(blank);
+            self.buffer.chars[row][col].write(blank);
         }
     }
 }
@@ -149,6 +149,7 @@ impl fmt::Write for Writer {
     }
 }
 
+/* Once the spinlock mutex is added it is safe to print outside this code
 pub fn print_test() {
     // a new writer is created that points to the VGA buffer at 0xb8000
     let mut writer = Writer {
@@ -165,4 +166,29 @@ pub fn print_test() {
     // call to unwrap() is needed as write! returns a Result
     // it would panic on any errors, but in this case, writes to VGA buffer never fail
     write!(writer, "The number are {} and {}", 42, 1.0 / 3.0).unwrap();
+}
+*/
+
+// this attribute makes a macro available to the whole crate, not just the module
+// it also requires the macro to be imported using std::print...
+#[macro_export]
+macro_rules! print {
+    // this macro expands to a call to the _print function in the io module - it is at the root namespace
+    // format_args! macro builds a fmt::Arguments type from passed arguments
+    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[doc(hidden)]
+#[macro_export]
+pub fn _print(args: fmt::Arguments) {
+    // write_fmt() is used so the Write trait needs to be imported
+    use core::fmt::Write;
+    // function locks the static WRITER and calls write_fmt() on it
+    WRITER.lock().write_fmt(args).unwrap();
 }

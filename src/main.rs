@@ -30,7 +30,23 @@ pub extern "C" fn _start() -> ! {
     //         *vga_buffer.offset(i as isize * 2 + 1) = 0x2;
     //     }
     // }
-    vga_buffer::print_test();
+
+    // replacing the print_test() function with a direct use of write()
+    // vga_buffer::print_test();
+
+    /* Once the print based macros are written the snippet below is no longer needed in main
+    use core::fmt::Write;
+     vga_buffer::WRITER.lock().write_str("Hello again").unwrap();
+     write!(
+         vga_buffer::WRITER.lock(),
+         ", some numbers: {} {}",
+         42,
+         1.337
+     )
+     .unwrap();
+     */
+    println!("Hello World{}", "!");
+    panic!("Some panic message!");
     loop {}
 }
 
@@ -41,8 +57,9 @@ use core::panic::PanicInfo;
 PanicInfo contains the file & line where the panic occurred & optional message
 Divergent function returning a never type (!)
 */
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
     // function should just loop indefinitely for now
+    println!("{}", info);
     loop {}
 }
 
