@@ -149,26 +149,6 @@ impl fmt::Write for Writer {
     }
 }
 
-/* Once the spinlock mutex is added it is safe to print outside this code
-pub fn print_test() {
-    // a new writer is created that points to the VGA buffer at 0xb8000
-    let mut writer = Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::Green, Color::Black),
-        // integer is cast as a mutable raw pointer and then converted to a mutable reference
-        // by dereferencing it, with *, and immediately borrowing again
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    };
-
-    writer.write_byte(b'H');
-    writer.write_string("ello ");
-    writer.write_string("Wørld!");
-    // call to unwrap() is needed as write! returns a Result
-    // it would panic on any errors, but in this case, writes to VGA buffer never fail
-    write!(writer, "The number are {} and {}", 42, 1.0 / 3.0).unwrap();
-}
-*/
-
 // this attribute makes a macro available to the whole crate, not just the module
 // it also requires the macro to be imported using std::print...
 #[macro_export]
