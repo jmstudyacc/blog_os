@@ -7,9 +7,27 @@ name = "blog-os"
 version = "0.1.0"
 edition = "2021"
 
+# _start() loops endlessly, as expected of the kernel, but this causes 'cargo test' to never return
+# this configuration key passes additional parameters to QEMU at startup
+# iobase = port address the device lives (oxf4), ioszie = specifies the port size in bytes (0x04)
+[package.metadata.bootimage]
+# to view the Serial output from QEMU we need to use the '"-serial", "stdio"' argument to redirect output to stdout
+# to remove the QEMU window as the information is being output to serial we pass the '"-display", "none"' argument
+test-args = ["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio", "-display", "none"]
+# below line is included as Cargo considers all non-0 error codes to be a test failure
+test-success-exit-code = 33 #(0x10 << 1) | 1
+
+# currently there are multiple places where an endless loop can occur:
+# (1) bootloader fails to load kernel leading to endless reboots
+# (2) BIOS/UEFI firmware fails to load bootloader, as above
+# (3) CPU enters a loop {} statement at the end of a function and does not exit
+# (4) hardware causes a system reset, e.g. a CPU exception is not caught
+# to mitigate this a timeout, in seconds, is set to address this
+test-timeout = 240
+
 # Disabling unwinding in Dev and Release
 [profile.dev]
-panic = "abort"
+#panic = "abort"
 
 [profile.release]
 panic = "abort"
@@ -20,6 +38,17 @@ bootloader = "0.9.8"
 volatile = "0.2.6"
 spin = "0.5.2"
 
+# x86_64 abstracts away the specific assembly code
+x86_64 = "0.14.2"
+
+# importing to enable the use of a serial port to transfer data from QEMU to host machine
+uart_16550 = "0.2.0"
+
 [dependencies.lazy_static]
 version = "1.0"
 features = ["spin_no_std"]
+
+# removing the harness from the test to enable testing multiple failing functions
+[[test]]
+name = "should_panic"
+harness = false

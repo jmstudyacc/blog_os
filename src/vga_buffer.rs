@@ -1,3 +1,5 @@
+// in src/vga_buffer.rs
+
 // use this crate to prevent the compiler from erroneously optimising
 // the compiler does not know that that the VGA buffer memory is being accessed
 use volatile::Volatile;
@@ -149,26 +151,6 @@ impl fmt::Write for Writer {
     }
 }
 
-/* Once the spinlock mutex is added it is safe to print outside this code
-pub fn print_test() {
-    // a new writer is created that points to the VGA buffer at 0xb8000
-    let mut writer = Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::Green, Color::Black),
-        // integer is cast as a mutable raw pointer and then converted to a mutable reference
-        // by dereferencing it, with *, and immediately borrowing again
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    };
-
-    writer.write_byte(b'H');
-    writer.write_string("ello ");
-    writer.write_string("Wørld!");
-    // call to unwrap() is needed as write! returns a Result
-    // it would panic on any errors, but in this case, writes to VGA buffer never fail
-    write!(writer, "The number are {} and {}", 42, 1.0 / 3.0).unwrap();
-}
-*/
-
 // this attribute makes a macro available to the whole crate, not just the module
 // it also requires the macro to be imported using std::print...
 #[macro_export]
@@ -191,4 +173,31 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     // function locks the static WRITER and calls write_fmt() on it
     WRITER.lock().write_fmt(args).unwrap();
+}
+
+// verify that a simple println works without panicking
+#[test_case]
+fn test_println_simple() {
+    println!("test_println_simple output");
+}
+
+// verify that the VGA buffer can handle many lines being printed with lines being shifted off screen
+#[test_case]
+fn test_println_many() {
+    for _ in 0..200 {
+        println!("test_println_many output");
+    }
+}
+
+#[test_case]
+fn test_println_output() {
+    let s = "Some test string that fits on a single line";
+    println!("{}", s);
+    // loop over each character in the string and create a variable that tracks the iteration count
+    for (i, c) in s.chars().enumerate() {
+        // read the character on screen at BUFFER_HEIGHT - 2 and at i, the count tracked above
+        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
+        // the character on screen and character in the string should be the same
+        assert_eq!(char::from(screen_char.ascii_character), c);
+    }
 }
