@@ -8,20 +8,13 @@
 #![feature(custom_test_frameworks)]
 // defines the test runner to be used
 // unfortunately this approach loses some advanced features e.g. #[should_panic] - this must be handwritten
-#![test_runner(crate::test_runner)]
+#![test_runner(blog_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-mod serial;
-mod vga_buffer;
+//static HELLO: &[u8] = b"Hello World!";
 
-static HELLO: &[u8] = b"Hello World!";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u32)] // represents each variant by a u32 integer
-pub enum QemuExitCode {
-    Success = 0x10,
-    Failed = 0x11,
-}
+use blog_os::println;
+use core::panic::PanicInfo;
 
 // ensures Rust compiler outputs a function named _start and not a random name
 #[no_mangle]
@@ -39,9 +32,6 @@ pub extern "C" fn _start() -> ! {
 
     loop {}
 }
-
-use crate::vga_buffer::Writer;
-use core::panic::PanicInfo;
 
 // new attribute that runs when NOT in Cargo Test
 #[cfg(not(test))]
@@ -61,13 +51,7 @@ fn panic(info: &PanicInfo) -> ! {
 #[cfg(test)]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    // serial_println is used here as opposed to println to ensure the message exits QEMU
-    serial_println!("[FAILED]\n");
-    serial_println!("ERROR: {}\n", info);
-    // the QemuExitCode::Failed it provided to end the running instance of the OS
-    exit_qemu(QemuExitCode::Failed);
-    // infinite loop is still required as the compiler does not know isa-debug-exit causes program exit
-    loop {}
+    blog_os::test_panic_handler(info)
 }
 /*
 panic_handler function is missing now the standard library has been unlinked
@@ -77,49 +61,11 @@ instead Rust provides you with the option to abort on panic - check Cargo.toml
 
 // main() is removed as there is no crt0 available for the entry point
 
-pub fn exit_qemu(exit_code: QemuExitCode) {
-    use x86_64::instructions::port::Port;
-
-    // this is unsafe as writing to an I/O port can generally result in arbitrary behaviour
-    unsafe {
-        // creates a new port at 0xf4 - the iobase of the isa-debug-exit device
-        let mut port = Port::new(0xf4);
-        // writes the exit code, passed to the function, into the port - as u32 as exit is 0x04
-        port.write(exit_code as u32);
-    }
-}
-
-// attribute to mark the function as a test - as defined at the start of the code
-#[cfg(test)]
-fn test_runner(tests: &[&dyn Fn()]) {
-    // a short debug message is printed
-    println!("Running {} tests", tests.len());
-    // each function in the list, tests, is called
-    // this is like a list of references to types that can be called like a function
-    for test in tests {
-        test();
-    }
-
-    // enabling the test_runner to exit QEMU once all tests are complete
-    exit_qemu(QemuExitCode::Success);
-}
-
 // creating a test case that passes and prints to terminal
 #[test_case]
 fn trivial_assertion() {
-    //print!("trivial assertion...");
-    // println!("[OK]");
-    // As the SerialPort is now implemented we can print to serial
-    // serial_println lives under the root namespace due to the #[macro_export] attribute
-    serial_print!("trivial assertion...");
+    // the serial_prints can be removed from here as they are captured in the Testable implementation
+    //serial_print!("trivial assertion...");
     assert_eq!(1, 1);
-    serial_println!("[OK]");
-}
-
-#[test_case]
-fn failed_assertion() {
-    // following print statements are output to serial interface
-    serial_print!("failing assertion...");
-    assert_eq!(1, 0);
-    serial_println!("[FAILED]");
+    //serial_println!("[OK]");
 }

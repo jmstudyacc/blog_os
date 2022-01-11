@@ -1,3 +1,5 @@
+// in src/vga_buffer.rs
+
 // use this crate to prevent the compiler from erroneously optimising
 // the compiler does not know that that the VGA buffer memory is being accessed
 use volatile::Volatile;
@@ -171,4 +173,31 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     // function locks the static WRITER and calls write_fmt() on it
     WRITER.lock().write_fmt(args).unwrap();
+}
+
+// verify that a simple println works without panicking
+#[test_case]
+fn test_println_simple() {
+    println!("test_println_simple output");
+}
+
+// verify that the VGA buffer can handle many lines being printed with lines being shifted off screen
+#[test_case]
+fn test_println_many() {
+    for _ in 0..200 {
+        println!("test_println_many output");
+    }
+}
+
+#[test_case]
+fn test_println_output() {
+    let s = "Some test string that fits on a single line";
+    println!("{}", s);
+    // loop over each character in the string and create a variable that tracks the iteration count
+    for (i, c) in s.chars().enumerate() {
+        // read the character on screen at BUFFER_HEIGHT - 2 and at i, the count tracked above
+        let screen_char = WRITER.lock().buffer.chars[BUFFER_HEIGHT - 2][i].read();
+        // the character on screen and character in the string should be the same
+        assert_eq!(char::from(screen_char.ascii_character), c);
+    }
 }
